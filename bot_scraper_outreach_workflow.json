@@ -1,0 +1,630 @@
+{
+  "name": "Bot scrapper Atencia Garage",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        -176
+      ],
+      "id": "11f6f57c-4ec9-4cad-b51d-8e1f24cc311e",
+      "name": "9 am a 21 pm"
+    },
+    {
+      "parameters": {
+        "jsCode": "const validLeads = [];\n\nfor (const item of $input.all()) {\n  // Extraemos todos los posibles nombres que usa Apify para el teléfono\n  let rawPhone = item.json.phoneUnformatted || item.json.phoneNumber || item.json.phone || item.json.cellphone || \"\";\n  let rawName = item.json.title || item.json.name || item.json.companyName || \"Empresa\";\n\n  // Forzamos a String para evitar que .replace falle si llega un Integer\n  let phone = String(rawPhone).trim();\n  let name = String(rawName).trim();\n\n  if (phone && phone !== \"undefined\" && phone !== \"null\") {\n    // Eliminamos todo lo que no sea numero\n    phone = phone.replace(/\\D/g, '');\n\n    if (phone.length > 0) {\n      // Formateo para Argentina / Mendoza (API de WhatsApp requiere 549)\n      if (phone.startsWith('54') && !phone.startsWith('549')) {\n         phone = '549' + phone.substring(2);\n      } else if (phone.startsWith('261')) {\n         phone = '549' + phone;\n      } else if (phone.startsWith('0261')) {\n         phone = '549' + phone.substring(1);\n      } else if (!phone.startsWith('54')) {\n         // Si es un número local (ej: 4234567), agregamos 549261 directamente\n         if (phone.length === 7) {\n             phone = '549261' + phone;\n         } else if (phone.startsWith('0')) {\n             phone = '549' + phone.substring(1);\n         } else {\n             phone = '549' + phone;\n         }\n      }\n\n      // Parche: quitar el \"15\" de los celulares (ej: 549261154...) si quedó atrapado\n      phone = phone.replace(/^549(\\d{3,4})15(\\d{6,7})$/, '549$1$2');\n\n      // Verificamos que tenga largo válido de celular para WhatsApp (entre 12 y 14 dígitos)\n      if (phone.length >= 12 && phone.length <= 14) {\n        validLeads.push({\n          json: {\n            nombre_empresa: name,\n            telefono_limpio: \"+\" + phone\n          }\n        });\n      }\n    }\n  }\n}\n\nreturn validLeads;"
+      },
+      "id": "0549c80a-bad5-4c37-83b1-12ced161fc1c",
+      "name": "Filtro Sanitario (Codigo)1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -176,
+        -176
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -16,
+        -80
+      ],
+      "id": "76f0eb48-dfab-4a8a-8105-bc1d65f27cb9",
+      "name": "Loop Over Items1"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 11) + 10 }}",
+        "unit": "minutes"
+      },
+      "id": "fa6b1f96-d5b3-430f-b7d4-37a7f0524e09",
+      "name": "Espera Humana (20 a 30 min)1",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        -112
+      ],
+      "webhookId": "912f2b3c-62b8-4c81-ab8a-1c696be88f34"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cff0d4f1-ae59-4a8e-bbd6-159d3e75482e",
+              "leftValue": "={{ $now.setZone('America/Argentina/Mendoza').hour }}",
+              "rightValue": 9,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            },
+            {
+              "id": "6e2ee131-26c6-45fa-9289-d2deee50520c",
+              "leftValue": "={{ $now.setZone('America/Argentina/Mendoza').hour }}",
+              "rightValue": 20,
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        496,
+        -80
+      ],
+      "id": "150243d9-48a7-414e-9e1a-444a4b7d6b4a",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "amount": 60,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        496,
+        176
+      ],
+      "id": "bc854840-4565-4d85-ae36-d1b1d877dd67",
+      "name": "Wait1",
+      "webhookId": "7f9c70ba-a37b-40b6-8c68-e284730111df"
+    },
+    {
+      "parameters": {
+        "resource": "Chatting",
+        "operation": "Send Text",
+        "session": "atenciagarage",
+        "chatId": "={{ $('Loop Over Items1').item.json.telefono_limpio.replace('+', '') }}@c.us",
+        "text": "=Hola {{ $('Filtro Sanitario (Codigo)1').item.json.nombre_empresa }}. Te escribo desde Atencia Garage. Somos un Lavadero, Lubrincentro y hacemos estetica automotriz. Nos interesa dejarles nuestro contacto por si en algún momento buscan una alternativa de confianza para el lavado y mantenimiento de sus vehículos. Entendemos que la imagen de sus unidades de trabajo es importante, así que quedamos a disposición por cualquier consulta. ¡Saludos! ",
+        "requestOptions": {}
+      },
+      "type": "@devlikeapro/n8n-nodes-waha.WAHA",
+      "typeVersion": 202502,
+      "position": [
+        1312,
+        -112
+      ],
+      "id": "c0e0421f-fe1c-49f9-a946-0a4b71069393",
+      "name": "Send a text message1",
+      "credentials": {
+        "wahaApi": {
+          "id": "GYSo4Xm5laSP0rSq",
+          "name": "WAHA account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "mensajes_scraper",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "empresa",
+              "fieldValue": "={{ $json.nombre_empresa }}"
+            },
+            {
+              "fieldId": "telefono",
+              "fieldValue": "={{ $json.telefono_limpio }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1536,
+        -32
+      ],
+      "id": "40643ae9-5928-4c44-b3ea-42bdc42fcdfd",
+      "name": "Supabase",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "hGg5dGe2Cm1YUsRx",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "16qQNcCneRA-4Q9y8mdp2puXs-UWgHGvieB18AlzKGgw",
+          "mode": "list",
+          "cachedResultName": "Turnos Lavadero",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16qQNcCneRA-4Q9y8mdp2puXs-UWgHGvieB18AlzKGgw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1399078881,
+          "mode": "list",
+          "cachedResultName": "Lista Negra",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16qQNcCneRA-4Q9y8mdp2puXs-UWgHGvieB18AlzKGgw/edit#gid=1399078881"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Telefono": "={{ $('Loop Over Items1').item.json.telefono_limpio.replace('+', '') }}@c.us"
+          },
+          "matchingColumns": [
+            "Telefono"
+          ],
+          "schema": [
+            {
+              "id": "Telefono",
+              "displayName": "Telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1536,
+        -208
+      ],
+      "id": "e10ca052-3375-455a-8e53-1b85931bfc27",
+      "name": "Lista Negra",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "EtkO9naWh6ZQkkuy",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "Run actor and get dataset",
+        "actorId": {
+          "__rl": true,
+          "value": "nwua9Gu5YrADL7ZDj",
+          "mode": "list",
+          "cachedResultName": "Google Maps Scraper (compass/crawler-google-places)",
+          "cachedResultUrl": "https://console.apify.com/actors/nwua9Gu5YrADL7ZDj/input"
+        },
+        "customBody": "{\n  \"searchStringsArray\": [\n    \"remiserias en Mendoza\",\n    \"agencia de remises en Mendoza\",\n    \"concesionarias de autos usados Las Heras Mendoza\",\n    \"venta de autos usados Las Heras Mendoza\",\n    \"fletes y mudanzas Las Heras Mendoza\",\n    \"empresas de logistica Mendoza\"\n  ]\n}",
+        "timeout": {}
+      },
+      "type": "@apify/n8n-nodes-apify.apify",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        -176
+      ],
+      "id": "6bc3b0d0-845c-4e63-b840-e9e43c18c97b",
+      "name": "Run an Actor and get dataset",
+      "credentials": {
+        "apifyApi": {
+          "id": "QF5UuKQtN53CoWBn",
+          "name": "Apify account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    fuente: 'Apify',\n    items_extraidos: $input.all().length\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        -304
+      ],
+      "id": "0bc35144-1e2a-4a32-8b6c-d014ea9894cc",
+      "name": "Contador de Leads"
+    },
+    {
+      "parameters": {
+        "tableId": "scraper_logs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "fuente",
+              "fieldValue": "Apify"
+            },
+            {
+              "fieldId": "items_extraidos",
+              "fieldValue": "={{ $json.items_extraidos }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        480,
+        -272
+      ],
+      "id": "efe71455-63eb-49a4-82f7-0cb70f7c0795",
+      "name": "Leads",
+      "credentials": {
+        "supabaseApi": {
+          "id": "hGg5dGe2Cm1YUsRx",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "mensajes_scraper",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telefono",
+              "condition": "eq",
+              "keyValue": "={{ $('Loop Over Items1').item.json.telefono_limpio }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        160,
+        -64
+      ],
+      "id": "2a93cdff-29f1-4162-8213-0cb111a1f4b8",
+      "name": "Lead existente",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "hGg5dGe2Cm1YUsRx",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "03ae92bb-e631-422c-b87a-f56b5b8168ae",
+              "leftValue": "={{ Object.keys($json).length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        304,
+        -64
+      ],
+      "id": "e65a1ee5-82bb-40cb-87e5-8e8912b597a8",
+      "name": "Lead nuevo?"
+    },
+    {
+      "parameters": {
+        "resource": "Contacts",
+        "operation": "Check Exists",
+        "session": "atenciagarage",
+        "phone": "={{ $('Loop Over Items1').item.json.telefono_limpio.replace('+', '') }}",
+        "requestOptions": {}
+      },
+      "type": "@devlikeapro/n8n-nodes-waha.WAHA",
+      "typeVersion": 202502,
+      "position": [
+        720,
+        -96
+      ],
+      "id": "9e772c08-9e6d-4742-83f8-0ceb2a7c3ac8",
+      "name": "Check phone number is registered in WhatsApp.",
+      "credentials": {
+        "wahaApi": {
+          "id": "GYSo4Xm5laSP0rSq",
+          "name": "WAHA account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b0460782-7948-4678-953e-301a98c0d7b8",
+              "leftValue": "={{ $json.numberExists }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        928,
+        -96
+      ],
+      "id": "e559483f-a4fc-4527-9a63-ab61d9249c4a",
+      "name": "Esta en Whatsapp?"
+    }
+  ],
+  "pinData": {
+    "9 am a 21 pm": [
+      {
+        "json": {},
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "9 am a 21 pm": {
+      "main": [
+        [
+          {
+            "node": "Run an Actor and get dataset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtro Sanitario (Codigo)1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Contador de Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Lead existente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Espera Humana (20 a 30 min)1": {
+      "main": [
+        [
+          {
+            "node": "Send a text message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Check phone number is registered in WhatsApp.",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Supabase",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Lista Negra",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run an Actor and get dataset": {
+      "main": [
+        [
+          {
+            "node": "Filtro Sanitario (Codigo)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contador de Leads": {
+      "main": [
+        [
+          {
+            "node": "Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leads": {
+      "main": [
+        []
+      ]
+    },
+    "Lead existente": {
+      "main": [
+        [
+          {
+            "node": "Lead nuevo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead nuevo?": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check phone number is registered in WhatsApp.": {
+      "main": [
+        [
+          {
+            "node": "Esta en Whatsapp?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esta en Whatsapp?": {
+      "main": [
+        [
+          {
+            "node": "Espera Humana (20 a 30 min)1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "45a4dc00-46ed-421a-8e96-2890bcec3221",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "881857ae2c41414af8a2a57ac10de026497eedad39fb4e88234101802415c1af"
+  },
+  "id": "WsFpyn8Gw8WN289I",
+  "tags": []
+}
